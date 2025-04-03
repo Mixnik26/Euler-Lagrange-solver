@@ -1,4 +1,3 @@
-from operator import eq
 import numpy as np
 from scipy.integrate import solve_bvp
 from scipy.integrate import solve_ivp
