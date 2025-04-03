@@ -14,6 +14,7 @@ class EulerLagrange():
         dqdot_dt = self.generate_dqdot_dt()
         equations_of_motion = self.generate_equations_of_motion(dqdot_dt)
 
+        
         if final_conditions is None:
             # Solve the boundary value problem using solve_ivp
             self.solution = solve_ivp(equations_of_motion, time_span, np.concatenate(initial_conditions), t_eval=np.linspace(time_span[0], time_span[1], 100))
@@ -35,12 +36,12 @@ class EulerLagrange():
     def generate_dqdot_dt(self, h=1e-5):
         # Generate the time derivatives of the generalized coordinates using the Euler-Lagrange equations and finite difference methods
         L = self.lagrangian
-        dL_dq = lambda t, q, qdot: L(t, q + h, qdot) - L(t, q - h, qdot) / (2 * h)
+        dL_dq = lambda t, q, qdot: (L(t, q + h, qdot) - L(t, q - h, qdot)) / (2 * h)
         d2L_dtdqdot = lambda t, q, qdot: (L(t + h, q, qdot + h) - L(t + h, q, qdot - h) - L(t - h, q, qdot + h) + L(t - h, q, qdot - h)) / (4 * h**2)
         d2L_dqdqdot = lambda t, q, qdot: (L(t, q + h, qdot + h) - L(t, q + h, qdot - h) - L(t, q - h, qdot + h) + L(t, q - h, qdot - h)) / (4 * h**2)
-        d2L_dqdot2 = lambda t, q, qdot: (L(t, q, qdot + h, ) - 2 * L(t, q, qdot, ) + L(t, q, qdot - h, )) / (h**2)
+        d2L_dqdot2 = lambda t, q, qdot: (L(t, q, qdot + h) - 2 * L(t, q, qdot) + L(t, q, qdot - h)) / (h**2)
         self.d2L_dqdot2 = d2L_dqdot2
-        dqdot_dt = lambda t, q, qdot: (dL_dq(t,q,qdot) - d2L_dtdqdot(t,q,qdot) - qdot * d2L_dqdqdot(t,q,qdot)) / d2L_dqdot2(t,q,qdot)
+        dqdot_dt = lambda t, q, qdot: (dL_dq(t, q, qdot) - d2L_dtdqdot(t, q, qdot) - qdot * d2L_dqdqdot(t, q, qdot)) / d2L_dqdot2(t, q, qdot)
         return dqdot_dt
 
 if __name__ == "__main__":
