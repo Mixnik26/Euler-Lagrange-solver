@@ -19,7 +19,13 @@ class EulerLagrange():
             self.solution = solve_ivp(equations_of_motion, time_span, np.concatenate(initial_conditions), t_eval=np.linspace(time_span[0], time_span[1], 100))
         else:
             # Solve the boundary value problem using solve_bvp
-            self.solution = solve_bvp(equations_of_motion, lambda t: np.concatenate(initial_conditions), time_span, np.concatenate(initial_conditions), np.concatenate(final_conditions))
+            def ode(t, z):
+                return equations_of_motion(t, z).T
+            
+            def bc(qa, qb):
+                return np.array([self.sum_of_squares(qa - initial_conditions), self.sum_of_squares(qb - final_conditions)])
+
+            self.solution = solve_bvp(ode, bc, time_span, np.concatenate(initial_conditions), np.concatenate(final_conditions))
 
     def generate_equations_of_motion(self, dqdot_dt):
         # Generate the equations of motion from the Lagrangian
@@ -42,6 +48,10 @@ class EulerLagrange():
         self.d2L_dqdot2 = d2L_dqdot2
         dqdot_dt = lambda t, q, qdot: (dL_dq(t, q, qdot) - d2L_dtdqdot(t, q, qdot) - qdot * d2L_dqdqdot(t, q, qdot)) / d2L_dqdot2(t, q, qdot)
         return dqdot_dt
+
+    def sum_of_squares(arr):
+        arr = np.array([x for x in arr if x is not None])
+        return np.sum(np.square(arr))
 
 if __name__ == "__main__":
     # Example Lagrangian: L = 1/2 m v^2 - V(x)
