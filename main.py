@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.integrate import solve_bvp
 from scipy.integrate import solve_ivp
+import matplotlib.pyplot as plt
 
 class EulerLagrange():
     def __init__(self, lagrangian, time_span: np.ndarray, initial_conditions: tuple[np.ndarray, np.ndarray], final_conditions: tuple[np.ndarray, np.ndarray] = None, initial_guess: tuple[np.ndarray, np.ndarray] = None):
@@ -12,7 +13,6 @@ class EulerLagrange():
         # Generate the equations of motion
         dqdot_dt = self.generate_dqdot_dt()
         equations_of_motion = self.generate_equations_of_motion(dqdot_dt)
-
         
         if final_conditions is None:
             # Solve the boundary value problem using solve_ivp
@@ -23,18 +23,17 @@ class EulerLagrange():
             final_conditions = np.concatenate(final_conditions)
             initial_guess = np.concatenate(initial_guess)
 
-            def ode(t, z):
-                z = z.T
-                return equations_of_motion(t, z).T
-            
+            # Define the boundary conditions
             def bc(qa, qb):
-                left_bc = np.array([qa.T[i] - initial_conditions[i] for i in range(len(initial_conditions)) if initial_conditions[i] is not None])
-                right_bc = np.array([qb.T[i] - final_conditions[i] for i in range(len(final_conditions)) if final_conditions[i] is not None])
-                return np.array([sum(left_bc**2), sum(right_bc**2)])
+                left_bc_res = np.array([qa[i] - initial_conditions[i] for i in range(len(initial_conditions)) if initial_conditions[i] is not None])
+                right_bc_res = np.array([qb[i] - final_conditions[i] for i in range(len(final_conditions)) if final_conditions[i] is not None])
+                return sum(left_bc_res**2), sum(right_bc_res**2)
 
-            initial_guess = [initial_conditions[i] if initial_conditions[i] is not None else initial_guess[i] for i in range(len(initial_conditions))]
+            initial_guess = np.array([initial_conditions[i] if initial_conditions[i] is not None else initial_guess[i] for i in range(len(initial_conditions))])
+            final_guess = np.array([final_conditions[i] if final_conditions[i] is not None else 0 for i in range(len(initial_conditions))])
+            initial_z = np.array([np.linspace(initial_guess[i], final_guess[i], len(time_span)) for i in range(len(initial_conditions))])
 
-            self.solution = solve_bvp(ode, bc, time_span, initial_guess)
+            self.solution = solve_bvp(equations_of_motion, bc, time_span, initial_z, verbose=2)
 
     def generate_equations_of_motion(self, dqdot_dt):
         # Generate the equations of motion from the Lagrangian
@@ -59,22 +58,14 @@ class EulerLagrange():
         return dqdot_dt
 
 if __name__ == "__main__":
-    # Example Lagrangian: L = 1/2 m v^2 - V(x)
+    # Solve the brachistochrone problem using the Euler-Lagrange equations
+    # Define the Lagrangian for the brachistochrone problem
     def lagrangian(t, q, qdot):
-        m = 1.0  # mass
-        k = 1.0  # spring constant
         x = q[0]
-        v = qdot[0]
-        return 0.5 * m * v**2 - 0.5 * k * x**2
+        xdot = qdot[0]
+        return (x**3)/3 + (xdot**2)/2
+    
+    el = EulerLagrange(lagrangian, time_span=np.linspace(0, 1, 100), initial_conditions=(np.array([None]), np.array([0])), final_conditions=(np.array([1]), np.array([None])), initial_guess=(np.array([.5]), np.array([0])))
 
-    # Initial conditions: [x(0), v(0)]
-    initial_conditions = (np.array([1.0]), np.array([0.0]))
-
-    # Time span for the simulation
-    time_span = (0, 10)
-
-    # Create an instance of the EulerLagrange class and solve the equations of motion
-    el_solver = EulerLagrange(lagrangian, time_span, initial_conditions)
-
-    # Print the solution
-    print(el_solver.solution.y)
+    plt.plot(el.solution.x, el.solution.y[0], label='x(t)')
+    plt.show()
