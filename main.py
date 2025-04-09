@@ -62,12 +62,12 @@ class EulerLagrange():
 
         return hamiltonian
     
-    def ivp(self, time_span: np.ndarray, initial_conditions: tuple[np.ndarray, np.ndarray], t_eval=None, *args):
+    def ivp(self, time_span: np.ndarray, initial_conditions: tuple[np.ndarray, np.ndarray], t_eval=None, **kwargs):
         # Solve the initial value problem using solve_ivp
         if t_eval is None:
             t_eval = time_span
 
-        self.solution = solve_ivp(self.equations_of_motion, (time_span[0], time_span[-1]), np.concatenate(initial_conditions), t_eval=t_eval, *args)
+        self.solution = solve_ivp(self.equations_of_motion, (time_span[0], time_span[-1]), np.concatenate(initial_conditions), t_eval=t_eval, **kwargs)
         self.q = self.solution.y[:len(initial_conditions[0])]
         self.qdot = self.solution.y[len(initial_conditions[0]):]
         self.t = self.solution.t
@@ -80,5 +80,14 @@ class EulerLagrange():
             self.H_diff = self.H_final - self.H
             if self.H_diff/self.H > 5e-2:
                 print(f"Warning! Hamiltonian numerically varied by more that 5%: delta H = {(100*self.H_diff/self.H):.1f}%")
+
+        return self.solution
+    
+    def bvp(self, time_span: np.ndarray, bc, initial_q_array: np.ndarray, **kwargs):
+
+        self.solution = solve_bvp(self.equations_of_motion, bc, time_span, initial_q_array, **kwargs)
+        self.q = self.solution.y[:len(initial_q_array[:,0])]
+        self.qdot = self.solution.y[len(initial_q_array[:,0]):]
+        self.t = self.solution.x
 
         return self.solution
