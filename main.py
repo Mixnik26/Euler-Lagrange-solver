@@ -3,7 +3,7 @@ from scipy.integrate import solve_bvp
 from scipy.integrate import solve_ivp
 
 class EulerLagrange():
-    def __init__(self, lagrangian, time_span: tuple, initial_conditions: tuple[np.ndarray, np.ndarray], final_conditions: tuple[np.ndarray, np.ndarray] = None):
+    def __init__(self, lagrangian, time_span: np.ndarray, initial_conditions: tuple[np.ndarray, np.ndarray], final_conditions: tuple[np.ndarray, np.ndarray] = None, initial_guess: tuple[np.ndarray, np.ndarray] = None):
         # Initialize the Euler-Lagrange equations solver
         self.lagrangian = lagrangian
         self.initial_conditions = initial_conditions
@@ -16,16 +16,25 @@ class EulerLagrange():
         
         if final_conditions is None:
             # Solve the boundary value problem using solve_ivp
-            self.solution = solve_ivp(equations_of_motion, time_span, np.concatenate(initial_conditions), t_eval=np.linspace(time_span[0], time_span[1], 100))
+            self.solution = solve_ivp(equations_of_motion, (time_span[0], time_span[-1]), np.concatenate(initial_conditions), t_eval=time_span)
         else:
             # Solve the boundary value problem using solve_bvp
+            initial_conditions = np.concatenate(initial_conditions)
+            final_conditions = np.concatenate(final_conditions)
+            initial_guess = np.concatenate(initial_guess)
+
             def ode(t, z):
+                z = z.T
                 return equations_of_motion(t, z).T
             
             def bc(qa, qb):
-                return np.array([self.sum_of_squares(qa - initial_conditions), self.sum_of_squares(qb - final_conditions)])
+                left_bc = np.array([qa.T[i] - initial_conditions[i] for i in range(len(initial_conditions)) if initial_conditions[i] is not None])
+                right_bc = np.array([qb.T[i] - final_conditions[i] for i in range(len(final_conditions)) if final_conditions[i] is not None])
+                return np.array([sum(left_bc**2), sum(right_bc**2)])
 
-            self.solution = solve_bvp(ode, bc, time_span, np.concatenate(initial_conditions), np.concatenate(final_conditions))
+            initial_guess = [initial_conditions[i] if initial_conditions[i] is not None else initial_guess[i] for i in range(len(initial_conditions))]
+
+            self.solution = solve_bvp(ode, bc, time_span, initial_guess)
 
     def generate_equations_of_motion(self, dqdot_dt):
         # Generate the equations of motion from the Lagrangian
@@ -48,10 +57,6 @@ class EulerLagrange():
         self.d2L_dqdot2 = d2L_dqdot2
         dqdot_dt = lambda t, q, qdot: (dL_dq(t, q, qdot) - d2L_dtdqdot(t, q, qdot) - qdot * d2L_dqdqdot(t, q, qdot)) / d2L_dqdot2(t, q, qdot)
         return dqdot_dt
-
-    def sum_of_squares(arr):
-        arr = np.array([x for x in arr if x is not None])
-        return np.sum(np.square(arr))
 
 if __name__ == "__main__":
     # Example Lagrangian: L = 1/2 m v^2 - V(x)
