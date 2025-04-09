@@ -55,6 +55,7 @@ class EulerLagrange():
         dL_dqdot = lambda t, q, qdot: (self.lagrangian(t, q, qdot + h) - self.lagrangian(t, q, qdot - h)) / (2 * h)
         self.p = dL_dqdot
 
+        # Define the Hamiltonian
         def hamiltonian(t, q, qdot):
             return sum(dL_dqdot(t, q, qdot) * qdot - self.lagrangian(t, q, qdot))
         self.hamiltonian = hamiltonian
@@ -65,12 +66,13 @@ class EulerLagrange():
         # Solve the initial value problem using solve_ivp
         if t_eval is None:
             t_eval = time_span
-        equations_of_motion = self.equations_of_motion
-        self.solution = solve_ivp(equations_of_motion, (time_span[0], time_span[-1]), np.concatenate(initial_conditions), t_eval=t_eval, *args)
+
+        self.solution = solve_ivp(self.equations_of_motion, (time_span[0], time_span[-1]), np.concatenate(initial_conditions), t_eval=t_eval, *args)
         self.q = self.solution.y[:len(initial_conditions[0])]
         self.qdot = self.solution.y[len(initial_conditions[0]):]
         self.t = self.solution.t
 
+        # Check if the Hamiltonian is conserved
         if not self.explicit_t_dependence:
             self.H_arr = self.hamiltonian(self.t, self.q, self.qdot)
             self.H = self.H_arr[0]
