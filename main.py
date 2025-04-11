@@ -3,9 +3,10 @@ from scipy.integrate import solve_bvp
 from scipy.integrate import solve_ivp
 
 class EulerLagrange():
-    def __init__(self, lagrangian, explicit_t_dependence: bool = False, ignorable_coordinates: np.ndarray[bool] = None, h: float = 1e-5):
+    def __init__(self, lagrangian, dimensionality: int, explicit_t_dependence: bool = False, ignorable_coordinates: np.ndarray[bool] = None, h: float = 1e-5):
         # Initialize the Euler-Lagrange equations solver
         self.ignorable_coordinates = ignorable_coordinates
+        self.dimensionality = dimensionality
         # Check if the Lagrangian has a t argument to determine if it has explicit t dependence
         explicit_t_dependence = 't' in lagrangian.__code__.co_varnames[:lagrangian.__code__.co_argcount]
         self.explicit_t_dependence = explicit_t_dependence
@@ -33,18 +34,40 @@ class EulerLagrange():
             dqdt = qdot
             dqdotdt = dqdot_dt(t, q, qdot)
             return np.concatenate((dqdt, dqdotdt))
-        
+
         return equations_of_motion
     
     def generate_dqdot_dt(self, h=1e-5):
         # Generate the time derivatives of the generalized coordinates using the Euler-Lagrange equations and finite difference methods
         L = self.lagrangian
-        dL_dq = lambda t, q, qdot: (L(t, q + h, qdot) - L(t, q - h, qdot)) / (2 * h)
-        d2L_dtdqdot = lambda t, q, qdot: (L(t + h, q, qdot + h) - L(t + h, q, qdot - h) - L(t - h, q, qdot + h) + L(t - h, q, qdot - h)) / (4 * h**2)
-        d2L_dqdqdot = lambda t, q, qdot: (L(t, q + h, qdot + h) - L(t, q + h, qdot - h) - L(t, q - h, qdot + h) + L(t, q - h, qdot - h)) / (4 * h**2)
-        d2L_dqdot2 = lambda t, q, qdot: (L(t, q, qdot + h) - 2 * L(t, q, qdot) + L(t, q, qdot - h)) / (h**2)
-        self.d2L_dqdot2 = d2L_dqdot2
-        dqdot_dt = lambda t, q, qdot: (dL_dq(t, q, qdot) - d2L_dtdqdot(t, q, qdot) - qdot * d2L_dqdqdot(t, q, qdot)) / d2L_dqdot2(t, q, qdot)
+        d = self.dimensionality
+
+        def h_arr(i):
+            arr = np.zeros(d)
+            arr[i] = h
+            return arr
+        
+        dL_dq = lambda t, q, qdot: np.array([
+            (L(t, q + h_arr(i), qdot) - L(t, q - h_arr(i), qdot)) / (2 * h) for i in range(d)])
+        
+        d2L_dtdqdot = lambda t, q, qdot: np.array([
+            (L(t + h_arr(i), q, qdot + h_arr(i)) - L(t + h_arr(i), q, qdot - h_arr(i)) - L(t - h_arr(i), q, qdot + h_arr(i)) + L(t - h_arr(i), q, qdot - h_arr(i))) / (4 * h**2) for i in range(d)])
+        
+        d2L_dqdqdot = lambda t, q, qdot: np.array([
+            (L(t, q + h_arr(i), qdot + h_arr(i)) - L(t, q + h_arr(i), qdot - h_arr(i)) - L(t, q - h_arr(i), qdot + h_arr(i)) + L(t, q - h_arr(i), qdot - h_arr(i))) / (4 * h**2) for i in range(d)])
+        
+        d2L_dqdot2 = lambda t, q, qdot: np.array([
+            (L(t, q, qdot + h_arr(i)) - 2 * L(t, q, qdot) + L(t, q, qdot - h_arr(i))) / (h**2) for i in range(d)])
+
+        self.not_warned_d2L_dqdot2 = True
+        def dqdot_dt(t, q, qdot):
+            try:
+                return (dL_dq(t, q, qdot) - d2L_dtdqdot(t, q, qdot) - qdot * d2L_dqdqdot(t, q, qdot)) / d2L_dqdot2(t, q, qdot)
+            except ZeroDivisionError:
+                if self.not_warned_d2L_dqdot2:
+                    print("Warning! d2L/dqdot2 is zero. The equations of motion are not well-defined.")
+                    self.not_warned_d2L_dqdot2 = False
+                return (dL_dq(t, q, qdot) - d2L_dtdqdot(t, q, qdot) - qdot * d2L_dqdqdot(t, q, qdot)) / d2L_dqdot2(t, q, qdot)
         return dqdot_dt
 
     def generate_hamiltonian(self, h=1e-5):
@@ -85,7 +108,19 @@ class EulerLagrange():
     
     def bvp(self, time_span: np.ndarray, bc, initial_q_array: np.ndarray, **kwargs):
 
-        self.solution = solve_bvp(self.equations_of_motion, bc, time_span, initial_q_array, **kwargs)
+        def fun(T, z):
+            dz_dt = []
+            for t,q in zip(T,z.T):
+                dz_dt.append(self.equations_of_motion(t, q))
+            return np.array(dz_dt).T
+
+
+        self.solution = solve_bvp(fun, bc, time_span, initial_q_array, **kwargs)
+
+        if self.solution.success:
+            print("Boundary value problem solved successfully.")
+        else:
+            print("Boundary value problem failed to converge.")
         self.q = self.solution.y[:len(initial_q_array[:,0])]
         self.qdot = self.solution.y[len(initial_q_array[:,0]):]
         self.t = self.solution.x
