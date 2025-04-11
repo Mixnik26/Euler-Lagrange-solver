@@ -16,7 +16,7 @@ t = np.linspace(0, 10, 100)  # time span
 q0 = np.array([np.pi/4])  # initial angle (45 degrees)
 qdot0 = np.array([0])  # initial angular velocity
 
-pendulum = EL.EulerLagrange(Lagrangian)
+pendulum = EL.EulerLagrange(Lagrangian, dimensionality=1)
 pendulum.ivp(t, (q0, qdot0))
 
 plt.title('Pendulum Motion')
