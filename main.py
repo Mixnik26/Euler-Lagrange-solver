@@ -3,6 +3,10 @@ from scipy.integrate import solve_bvp
 from scipy.integrate import solve_ivp
 
 class EulerLagrange():
+    '''
+    Class to handle the Euler-Lagrange equations of motion for a system defined by a Lagrangian.
+    The class can handle both explicit and implicit time dependence of the Lagrangian.
+    '''
     def __init__(self, lagrangian, dimensionality: int, explicit_t_dependence: bool = False, ignorable_coordinates: np.ndarray[bool] = None, h: float = 1e-5):
         # Initialize the Euler-Lagrange equations solver
         self.ignorable_coordinates = ignorable_coordinates
@@ -27,6 +31,9 @@ class EulerLagrange():
         self.equations_of_motion = self.generate_equations_of_motion(dqdot_dt)
     
     def generate_equations_of_motion(self, dqdot_dt):
+        '''
+        Uses dqdot_dt to generate the equations of motion from the Lagrangian.
+        '''
         # Generate the equations of motion from the Lagrangian as a first order system
         def equations_of_motion(t, z):
             q = z[:len(z)//2]
@@ -71,6 +78,9 @@ class EulerLagrange():
         return dqdot_dt
 
     def generate_hamiltonian(self, h=1e-5):
+        '''
+        Generates a function that computes the Hamiltonian of the system from the Lagrangian for a given t, q, and qdot
+        '''
         if self.explicit_t_dependence:
             print("Warning! Hamiltonian is only conserved if the Lagrangian has no explicit t dependence.")
         
@@ -86,6 +96,16 @@ class EulerLagrange():
         return hamiltonian
     
     def ivp(self, time_span: np.ndarray, initial_conditions: tuple[np.ndarray, np.ndarray], t_eval=None, **kwargs):
+        '''
+        Solves the initial value problem using solve_ivp given by the Lagrangian using solve_ivp.
+        Inputs:
+        - time_span: array of time points to evaluate the solution at
+        - initial_conditions: tuple of initial conditions (q0, qdot0)
+        - t_eval: array of time points to evaluate the solution at (optional)
+        - **kwargs: additional arguments to pass to solve_ivp
+        Outputs:
+        - solution: the solution object returned by solve_ivp
+        '''
         # Solve the initial value problem using solve_ivp
         if t_eval is None:
             t_eval = time_span
@@ -107,7 +127,16 @@ class EulerLagrange():
         return self.solution
     
     def bvp(self, time_span: np.ndarray, bc, initial_q_array: np.ndarray, **kwargs):
-
+        '''
+        Solves the boundary value problem using solve_bvp given by the Lagrangian using solve_bvp.
+        Inputs:
+        - time_span: array of time points to evaluate the solution at
+        - bc: function that defines the boundary conditions
+        - initial_q_array: array of initial conditions to be passed to solve_bvp. Must be of shape (2*d, n) where d is the dimensionality of the system and n is the number of time points.
+        - **kwargs: additional arguments to pass to solve_bvp
+        Outputs:
+        - solution: the solution object returned by solve_bvp
+        '''
         def fun(T, z):
             dz_dt = []
             for t,q in zip(T,z.T):
